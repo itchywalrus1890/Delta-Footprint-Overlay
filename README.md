@@ -1,8 +1,8 @@
 Hey everyone, here is another order-flow script I put together: a Delta Footprint Overlay that builds a footprint chart directly on top of your main candlesticks. Instead of needing a separate footprint platform, this indicator pulls TradingView's lower timeframe data (down to the 1-second chart) to reconstruct the intra-bar buying and selling delta. It slices each candle into your custom price steps and calculates the net volume difference at every single price level.
-+4
+
 
 The script visualizes this data by drawing seamless, colored boxes over the price action, separating positive and negative delta into distinct colors. It also prints the exact delta numbers right in the center of each cell, formatting larger figures (like "1.2K") so the chart stays clean and readable. To ensure performance doesn't drag, the script actively deletes older footprint boxes based on the number of bars you want to keep visible , and it strictly runs on confirmed bars so the lower timeframe data is fully complete before it renders.
-+4
+
 
 The most useful feature is the smart outlier detection. You don't have to manually scan the numbers to find where the heavy players stepped in. The script can automatically highlight extreme delta levels by comparing them to either a multiplier of the candle's average volume or a percentage of its maximum volume. When a level crosses that threshold, the cell flashes a distinct outlier color so you can instantly spot hidden absorption or aggressive market sweeps. Everything—from the tick sizes and text scaling to the exact outlier math—is fully adjustable in the settings. Just copy the code and add it to your Pine Editor!
-+4
+
