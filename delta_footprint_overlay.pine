@@ -1,0 +1,124 @@
+//@version=5
+indicator("Delta Footprint Overlay", overlay=true, max_boxes_count=500, max_labels_count=500)
+
+// ============================================================
+// INPUTS
+// ============================================================
+g1 = "Colors"
+posColor     = input.color(color.new(#26a69a, 20), "Positive Delta", group=g1)
+negColor     = input.color(color.new(#ef5350, 20), "Negative Delta", group=g1)
+textColor    = input.color(color.white, "Text Color", group=g1)
+outlierColor = input.color(color.new(#ffeb3b, 0), "Outlier Highlight", group=g1)
+borderColor  = input.color(color.new(color.black, 100), "Cell Border (100 = seamless)", group=g1)
+
+g2 = "Aggregation"
+priceStep  = input.float(0.01, "Price Level Step (tick size)", minval=0.00001, step=0.01, group=g2)
+ltfPeriod  = input.timeframe("1", "Lower Timeframe", group=g2, tooltip="Lower TF used to reconstruct intra-bar delta. '1' = 1 min. '1S' = 1 sec (if supported by symbol). Smaller = more accurate.")
+
+g3 = "Display"
+numBars  = input.int(15, "Number of Bars to Display", minval=1, maxval=50, group=g3)
+txtSize  = input.string("tiny", "Text Size", options=["tiny","small","normal","large"], group=g3)
+
+g4 = "Outlier Detection"
+enableOutlier = input.bool(true, "Highlight Outliers", group=g4)
+outlierMode   = input.string("avg", "Threshold Basis", options=["avg","max"], group=g4, tooltip="'avg' = multiplier × average |delta| of the candle. 'max' = proportion of max |delta| of the candle.")
+outlierMult   = input.float(3.0, "Threshold (avg × multiplier)", minval=1.0, step=0.1, group=g4)
+outlierMaxPct = input.float(0.75, "Threshold (max × proportion)", minval=0.1, maxval=1.0, step=0.05, group=g4)
+
+// ============================================================
+// HELPERS
+// ============================================================
+sz = txtSize == "tiny" ? size.tiny : txtSize == "small" ? size.small : txtSize == "large" ? size.large : size.normal
+
+// Number formatting: 1200 -> "1.2K", -987 -> "-987", 14100 -> "14.1K"
+fmt(n) =>
+    a = math.abs(n)
+    a >= 1000 ? str.tostring(n / 1000, "#.#") + "K" : str.tostring(math.round(n))
+
+// ============================================================
+// LOWER TIMEFRAME DATA
+// ============================================================
+[ltfO, ltfC, ltfV] = request.security_lower_tf(syminfo.tickerid, ltfPeriod, [open, close, volume])
+
+// Storage for drawn boxes so we can prune old ones
+var array<box> boxes = array.new<box>()
+
+// ============================================================
+// CORE: build per-bar delta-by-price map and draw
+// ============================================================
+drawFootprint() =>
+    levels = array.new<float>()
+    deltas = array.new<float>()
+
+    n = array.size(ltfC)
+    if n > 0
+        // Aggregate delta per price level
+        for i = 0 to n - 1
+            c = array.get(ltfC, i)
+            o = array.get(ltfO, i)
+            v = nz(array.get(ltfV, i))
+            d = c > o ? v : c < o ? -v : 0.0
+            lvl = math.round(c / priceStep) * priceStep
+
+            found = false
+            idx = -1
+            cntL = array.size(levels)
+            if cntL > 0
+                for j = 0 to cntL - 1
+                    if math.abs(array.get(levels, j) - lvl) < priceStep / 2
+                        idx := j
+                        found := true
+                        break
+            if found
+                array.set(deltas, idx, array.get(deltas, idx) + d)
+            else
+                array.push(levels, lvl)
+                array.push(deltas, d)
+
+        // Determine outlier threshold
+        cnt = array.size(deltas)
+        sumAbs = 0.0
+        maxAbs = 0.0
+        for j = 0 to cnt - 1
+            a = math.abs(array.get(deltas, j))
+            sumAbs += a
+            if a > maxAbs
+                maxAbs := a
+        avgAbs = cnt > 0 ? sumAbs / cnt : 0.0
+        threshold = outlierMode == "avg" ? avgAbs * outlierMult : maxAbs * outlierMaxPct
+
+        // Draw each level as a seamless box with centered text
+        for j = 0 to cnt - 1
+            lvl = array.get(levels, j)
+            d   = array.get(deltas, j)
+            if d == 0
+                continue
+            isOut = enableOutlier and threshold > 0 and math.abs(d) >= threshold
+            bg = isOut ? outlierColor : (d >= 0 ? posColor : negColor)
+            top = lvl + priceStep / 2
+            bot = lvl - priceStep / 2
+
+            b = box.new(left=bar_index, top=top, right=bar_index, bottom=bot,
+                 xloc=xloc.bar_index,
+                 bgcolor=bg,
+                 border_color=borderColor,
+                 border_width=0,
+                 text=fmt(d),
+                 text_color=textColor,
+                 text_size=sz,
+                 text_halign=text.align_center,
+                 text_valign=text.align_center)
+            array.push(boxes, b)
+
+    // Prune: keep roughly the last `numBars` worth of boxes
+    maxTotal = numBars * 60
+    while array.size(boxes) > maxTotal
+        old = array.shift(boxes)
+        box.delete(old)
+
+// Only draw on confirmed bars — LTF data is complete at that point.
+if barstate.isconfirmed
+    drawFootprint()
+
+// Satisfy Pine's requirement for a top-level drawing call.
+plot(na, "_", display=display.none)
