@@ -6,3 +6,5 @@ The script visualizes this data by drawing seamless, colored boxes over the pric
 
 The most useful feature is the smart outlier detection. You don't have to manually scan the numbers to find where the heavy players stepped in. The script can automatically highlight extreme delta levels by comparing them to either a multiplier of the candle's average volume or a percentage of its maximum volume. When a level crosses that threshold, the cell flashes a distinct outlier color so you can instantly spot hidden absorption or aggressive market sweeps. Everything—from the tick sizes and text scaling to the exact outlier math—is fully adjustable in the settings. Just copy the code and add it to your Pine Editor!
 
+<img width="1241" height="740" alt="Screenshot 2026-04-24 at 23 46 17" src="https://github.com/user-attachments/assets/a1d12b16-d06a-45b5-b55c-9cd13d15c130" />
+
